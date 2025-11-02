@@ -91,7 +91,7 @@ namespace GorillaInfoWatch.Screens
             economyLines.Add($"Shiny Rocks: {CosmeticsController.instance.CurrencyBalance}");
 
             TimeSpan whenShinyRocks = TimeSpan.FromSeconds(CosmeticsController.instance.secondsUntilTomorrow);
-            economyLines.Add($"+ 100 Shiny Rocks in: {CountdownText.GetTimeDisplay(whenShinyRocks, "{0} {1}", int.MaxValue, "Now", string.Empty).ToLower()} ({(DateTime.Now + whenShinyRocks).ToShortTimeString()})");
+            economyLines.Add($"+ 100 Shiny Rocks in: {CountdownText.GetTimeDisplay(whenShinyRocks, "{0} {1}", int.MaxValue, "Now", string.Empty).msg.ToLower()} ({(DateTime.Now + whenShinyRocks).ToShortTimeString()})");
 
             economyLines.Skip();
 
@@ -151,6 +151,7 @@ namespace GorillaInfoWatch.Screens
             progressionLines.Add($"Total Points: {ProgressionController.TotalPoints}");
             progressionLines.Add($"Unclaimed Points: {ProgressionController._gInstance.unclaimedPoints}");
 
+            /*
             if (localRig.TryGetComponent(out GRPlayer grPlayer))
             {
                 progressionLines.Skip();
@@ -161,6 +162,7 @@ namespace GorillaInfoWatch.Screens
                 progressionLines.Add($"Earned: {grProgression.points} out of {nextTier} / {Mathf.FloorToInt((float)grProgression.points / nextTier * 100f)}%");
                 progressionLines.Add($"Promotion: {(grProgression.points - nextTier) >= 0}");
             }
+            */
 
             /*
             StringBuilder str = new();
