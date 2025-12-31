@@ -110,7 +110,16 @@ public class SignificanceManager : MonoBehaviour, IInitialize
         NetPlayer player = rig.Creator ?? rig.OwningNetPlayer;
         if (player == null || player.IsNull || player.IsLocal || rig.isOfflineVRRig || rig.isLocal) return;
 
-        CheckPlayer(player, SignificanceCheckScope.Item);
+        if (CheckPlayer(player, SignificanceCheckScope.Item) && PlayerUtility.GetConsent(player).HasFlag(PlayerConsent.Item) && GetSignificance(player, out PlayerSignificance[] significance) && Array.Find(significance, item => item is ItemSignificance) is ItemSignificance item)
+        {
+            string userId = player.UserId;
+            string displayName = CosmeticsController.instance.GetItemDisplayName(CosmeticsController.instance.GetItemFromDict(item.ItemId));
+            Notifications.SendNotification(new($"A notable cosmetic was detected", displayName, 5, Sounds.notificationPositive, new Notification.ExternalScreen(typeof(PlayerInspectorScreen), $"Inspect {player.NickName.SanitizeName()}", delegate ()
+            {
+                player = PlayerUtility.GetPlayer(userId);
+                if (player != null && !player.IsNull) PlayerInspectorScreen.UserId = player.UserId;
+            })));
+        }
     }
 
     public bool CheckPlayer(NetPlayer player, SignificanceCheckScope checkScope)
@@ -177,19 +186,6 @@ public class SignificanceManager : MonoBehaviour, IInitialize
     #region Utilities (significance/consent)
 
     public bool GetSignificance(NetPlayer player, out PlayerSignificance[] significance) => _significance.TryGetValue(player, out significance);
-
-    public bool GetSignificanceClass<T>(NetPlayer player, out T significanceClass) where T : class
-    {
-        if (GetSignificance(player, out PlayerSignificance[] significance))
-        {
-            PlayerSignificance search = Array.Find(significance, sigClass => sigClass is T);
-            significanceClass = search != null ? search as T : null;
-            return significanceClass != null;
-        }
-
-        significanceClass = null;
-        return false;
-    }
 
     public void SetConsent(PlayerConsent consent, bool saveData = true)
     {
