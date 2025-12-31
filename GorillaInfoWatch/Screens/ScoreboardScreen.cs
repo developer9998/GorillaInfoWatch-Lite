@@ -1,7 +1,6 @@
 ﻿using GorillaInfoWatch.Extensions;
 using GorillaInfoWatch.Models;
 using GorillaInfoWatch.Models.Attributes;
-using GorillaInfoWatch.Models.Enumerations;
 using GorillaInfoWatch.Models.Widgets;
 using GorillaInfoWatch.Tools;
 using Photon.Pun;
@@ -64,7 +63,7 @@ namespace GorillaInfoWatch.Screens
             lines.Append(NetworkSystem.Instance.RoomPlayerCount).Append("/").Append(maxPlayers).Append(" Players").Add(new Widget_PushButton(() => LoadScreen<RoomInspectorScreen>())
             {
                 Colour = ColourPalette.Blue,
-                Symbol = Symbols.Info
+                Symbol = Symbol.GetSharedSymbol(Symbols.Info)
             });
 
             lines.Append("Game Mode: ").AppendLine(GameModeUtils.CurrentGamemode is Gamemode gamemode ? gamemode.DisplayName : GorillaScoreBoard.error.ToTitleCase()).AppendLine();
@@ -97,7 +96,7 @@ namespace GorillaInfoWatch.Screens
                 }, new Widget_PushButton(InspectPlayer, player)
                 {
                     Colour = ColourPalette.Blue,
-                    Symbol = (Symbol)Symbols.Info
+                    Symbol = Symbol.GetSharedSymbol(Symbols.Info)
                 }];
 
                 lines.AppendColour(player.GetName().EnforcePlayerNameLength(), GorillaParent.instance.vrrigDict.TryGetValue(player, out VRRig rig) ? rig.playerText1.color : Color.white);

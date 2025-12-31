@@ -3,7 +3,6 @@ using ExitGames.Client.Photon;
 using GorillaGameModes;
 using GorillaInfoWatch.Extensions;
 using GorillaInfoWatch.Models;
-using GorillaInfoWatch.Models.Enumerations;
 using GorillaInfoWatch.Models.Widgets;
 using GorillaInfoWatch.Patches;
 using GorillaInfoWatch.Tools;
@@ -89,7 +88,7 @@ namespace GorillaInfoWatch.Screens
                 })
                 {
                     Colour = ColourPalette.Blue,
-                    Symbol = Symbols.Info
+                    Symbol = Symbol.GetSharedSymbol(Symbols.Info)
                 });
             }
 

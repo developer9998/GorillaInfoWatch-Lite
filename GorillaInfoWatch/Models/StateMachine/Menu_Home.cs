@@ -1,6 +1,6 @@
-﻿using GorillaInfoWatch.Behaviours;
-using GorillaInfoWatch.Models.Enumerations;
-using GorillaInfoWatch.Tools;
+﻿using GorillaInfoWatch.Behaviours.UI;
+using Photon.Pun;
+using Photon.Realtime;
 using Photon.Voice.PUN;
 using Photon.Voice.Unity;
 using System;
@@ -8,173 +8,195 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace GorillaInfoWatch.Models.StateMachine
+namespace GorillaInfoWatch.Models.StateMachine;
+
+public class Menu_Home(Watch watch) : Menu_StateBase(watch)
 {
-    public class Menu_Home(InfoWatch watch) : Menu_StateBase(watch)
+    private int frameCount;
+    private float timeCount;
+
+    public GameObject fpsObject, pingObject;
+    private TMP_Text fpsText, pingText;
+    private Image micIcon, bellIcon;
+
+    private Symbol micSpeakSymbol, micMuteSymbol, micTimeoutSymbol, bellIdleSymbol, bellRingSymbol;
+
+    private Recorder _localRecorder = null;
+
+    private bool isLocalWatch;
+    private RigContainer targetRig;
+
+    private GorillaSpeakerLoudness _speakerLoudness;
+
+    private MicIconState _iconState;
+
+    public override void Enter()
     {
-        public GameObject fpsObject;
+        base.Enter();
 
-        private int frameCount;
-        private float timeCount;
+        Watch.homeMenu.SetActive(true);
+    }
 
-        private TMP_Text fpsText;
-        private Image micIcon, bellIcon;
+    public override void Initialize()
+    {
+        base.Initialize();
 
-        private Symbol micSpeakSymbol, micMuteSymbol, micTimeoutSymbol, bellIdleSymbol, bellRingSymbol;
+        isLocalWatch = Watch.LocalWatch == Watch;
+        targetRig = isLocalWatch ? VRRigCache.Instance.localRig : (Watch.Rig.rigContainer ?? Watch.Rig.GetComponent<RigContainer>());
 
-        private Recorder recorder = null;
+        fpsObject = Watch.homeMenu.transform.Find("BottomLeftCorner/FPS").gameObject;
+        fpsText = fpsObject.transform.GetChild(0).GetComponent<TMP_Text>();
+        fpsObject.SetActive(true);
 
-        private bool isLocalWatch;
-        private RigContainer targetRig;
+        pingObject = Watch.homeMenu.transform.Find("BottomLeftCorner/Ping").gameObject;
+        pingText = pingObject.transform.GetChild(0).GetComponent<TMP_Text>();
+        pingObject.SetActive(isLocalWatch);
 
-        public override void Enter()
+        micIcon = Watch.homeMenu.transform.Find("BottomRightCorner/Speaker").GetComponent<Image>();
+        bellIcon = Watch.homeMenu.transform.Find("BottomRightCorner/Bell").GetComponent<Image>();
+        bellIcon.enabled = isLocalWatch;
+
+        micSpeakSymbol = Symbol.GetSharedSymbol(Symbols.OpenSpeaker);
+        micMuteSymbol = Symbol.GetSharedSymbol(Symbols.MutedSpeaker);
+        micTimeoutSymbol = Symbol.GetSharedSymbol(Symbols.ForceMuteSpeaker);
+        bellIdleSymbol = Symbol.GetSharedSymbol(Symbols.Bell);
+        bellRingSymbol = Symbol.GetSharedSymbol(Symbols.BellRing);
+
+        InfrequentUpdate();
+    }
+
+    public override void Resume()
+    {
+        base.Resume();
+
+        frameCount = 0;
+        timeCount = 0;
+    }
+
+    public override void Exit()
+    {
+        base.Exit();
+
+        Watch.homeMenu.SetActive(false);
+    }
+
+    public override void Update()
+    {
+        base.Update();
+
+        if (timeCount < 0.5f)
         {
-            base.Enter();
-
-            Watch.homeMenu.SetActive(true);
-
-            if (isLocalWatch)
-            {
-                NetworkSystem.Instance.OnMultiplayerStarted += UpdateSpeaker;
-                NetworkSystem.Instance.OnReturnedToSinglePlayer += UpdateSpeaker;
-            }
+            timeCount += Time.unscaledDeltaTime;
+            frameCount++;
         }
-
-        public override void Initialize()
+        else
         {
-            base.Initialize();
-
-            fpsObject = Watch.homeMenu.transform.Find("FPS").gameObject;
-            fpsText = fpsObject.transform.GetChild(0).GetComponent<TMP_Text>();
-            fpsObject.SetActive(true);
-
-            micIcon = Watch.homeMenu.transform.Find("IconParent/Speaker").GetComponent<Image>();
-            bellIcon = Watch.homeMenu.transform.Find("IconParent/Bell").GetComponent<Image>();
-            bellIcon.enabled = Watch.Rig.isOfflineVRRig;
-
-            micSpeakSymbol = (Symbol)Symbols.OpenSpeaker;
-            micMuteSymbol = (Symbol)Symbols.MutedSpeaker;
-            micTimeoutSymbol = (Symbol)Symbols.ForceMuteSpeaker;
-            bellIdleSymbol = (Symbol)Symbols.Bell;
-            bellRingSymbol = (Symbol)Symbols.BellRing;
-
-            isLocalWatch = InfoWatch.LocalWatch == Watch;
-            targetRig = isLocalWatch ? VRRigCache.Instance.localRig : (Watch.Rig.rigContainer ?? Watch.Rig.GetComponent<RigContainer>());
-        }
-
-        public override void Resume()
-        {
-            base.Resume();
-
+            InfrequentUpdate();
+            timeCount = 0f;
             frameCount = 0;
-            timeCount = 0;
-
-            UpdateSpeaker();
         }
 
-        public override void Exit()
+        MicIconState iconState = MicIconState.Silent;
+
+        if (isLocalWatch)
         {
-            base.Exit();
-
-            Watch.homeMenu.SetActive(false);
-
-            if (isLocalWatch)
+            if (GorillaTagger.moderationMutedTime > 0)
             {
-                NetworkSystem.Instance.OnMultiplayerStarted -= UpdateSpeaker;
-                NetworkSystem.Instance.OnReturnedToSinglePlayer -= UpdateSpeaker;
-            }
-        }
-
-        public override void Update()
-        {
-            base.Update();
-
-            if (timeCount < 0.5f)
-            {
-                timeCount += Time.unscaledDeltaTime;
-                frameCount++;
-            }
-            else
-            {
-                InfrequentUpdate();
-                timeCount = 0f;
-                frameCount = 0;
+                iconState = MicIconState.MuteViaPunishment;
+                goto CheckMicIcon;
             }
 
-            if (NetworkSystem.Instance.InRoom)
+            if (NetworkSystem.Instance.InRoom && _localRecorder == null) _localRecorder = NetworkSystem.Instance.LocalRecorder;
+
+            if (_speakerLoudness == null) _speakerLoudness = GorillaTagger.Instance.offlineVRRig.mySpeakerLoudness ?? GorillaTagger.Instance.offlineVRRig.GetComponent<GorillaSpeakerLoudness>();
+
+            if ((_speakerLoudness != null && !_speakerLoudness.IsMicEnabled) || (_localRecorder != null && !_localRecorder.TransmitEnabled) || !targetRig.Rig.shouldSendSpeakingLoudness)
             {
-                try
-                {
-                    if (!micIcon.enabled) micIcon.enabled = true;
-
-                    if (isLocalWatch && recorder == null)
-                    {
-                        recorder = NetworkSystem.Instance.LocalRecorder;
-                    }
-
-                    if (isLocalWatch && GorillaTagger.moderationMutedTime > 0)
-                    {
-                        if (micIcon.sprite != micTimeoutSymbol.Sprite)
-                        {
-                            micIcon.sprite = micTimeoutSymbol.Sprite;
-                            micIcon.color = Color.white;
-                        }
-                        return;
-                    }
-
-                    if (isLocalWatch ? (!targetRig.Rig.mySpeakerLoudness.IsMicEnabled || !recorder.TransmitEnabled) : (targetRig.Muted || !targetRig.Rig.mySpeakerLoudness.IsMicEnabled))
-                    {
-                        if (micIcon.sprite != micMuteSymbol.Sprite)
-                        {
-                            micIcon.sprite = micMuteSymbol.Sprite;
-                            micIcon.color = Color.white;
-                        }
-                        return;
-                    }
-
-                    bool isSpeaking = isLocalWatch ? recorder.IsCurrentlyTransmitting : (targetRig.Voice is PhotonVoiceView voice && voice && voice.IsSpeaking);
-                    float value = isSpeaking ? 1f : 0.5f;
-
-                    if (micIcon.sprite != micSpeakSymbol.Sprite) micIcon.sprite = micSpeakSymbol.Sprite;
-                    if (micIcon.color.r != value) micIcon.color = new Color(value, value, value);
-                }
-                catch (Exception ex)
-                {
-                    Logging.Error(ex);
-                }
-
-                return;
+                iconState = MicIconState.MuteViaPreference;
+                goto CheckMicIcon;
             }
 
-            recorder = null;
-            if (micIcon.enabled) micIcon.enabled = false;
-        }
-
-        public void InfrequentUpdate()
-        {
-            if (Watch.TimeOffset is float timeOffset)
+            if (_speakerLoudness != null)
             {
-                DateTime dateTime = DateTime.UtcNow + TimeSpan.FromMinutes(timeOffset);
-                string time = dateTime.ToShortTimeString();
-                string date = dateTime.ToLongDateString();
-                Watch.timeText.text = string.Format("<cspace=0.1em>{0}</cspace><br><size=50%>{1}</size>", time, date);
+                float squareRoot = Mathf.Sqrt(_speakerLoudness.LoudnessNormalized);
+                bool isSpeaking = Mathf.FloorToInt(squareRoot * 50f) >= 3;
+                iconState = isSpeaking ? MicIconState.Speaking : MicIconState.Silent;
+            }
+        }
+        else
+        {
+            if (_speakerLoudness == null) _speakerLoudness = targetRig.Rig.mySpeakerLoudness ?? targetRig.Rig.GetComponent<GorillaSpeakerLoudness>();
+
+            if ((_speakerLoudness != null && !_speakerLoudness.IsMicEnabled) || targetRig.Muted)
+            {
+                iconState = targetRig.GetIsPlayerAutoMuted() ? MicIconState.MuteViaPunishment : MicIconState.MuteViaPreference;
+                goto CheckMicIcon;
             }
 
-            fpsText.text = (isLocalWatch ? Mathf.FloorToInt(frameCount / timeCount) : Watch.Rig.fps).ToString();
+            bool isSpeaking = targetRig.Voice is PhotonVoiceView voice && voice && voice.IsSpeaking;
+            iconState = isSpeaking ? MicIconState.Speaking : MicIconState.Silent;
         }
 
-        public void UpdateBell(int notificationCount)
+    CheckMicIcon:
+
+        if (_iconState != iconState)
         {
-            bool hasUnread = notificationCount > 0;
-            float floatingPoint = hasUnread ? 1f : 0.2f;
-            Symbol symbol = hasUnread ? bellRingSymbol : bellIdleSymbol;
-            bellIcon.sprite = symbol.Sprite;
-            bellIcon.color = new Color(1f, 1f, 1f, floatingPoint);
+            _iconState = iconState;
+            switch (_iconState)
+            {
+                case MicIconState.Silent:
+                    micIcon.sprite = micSpeakSymbol.Sprite;
+                    micIcon.color = Color.grey;
+                    break;
+                case MicIconState.Speaking:
+                    micIcon.sprite = micSpeakSymbol.Sprite;
+                    micIcon.color = Color.white;
+                    break;
+                case MicIconState.MuteViaPreference:
+                    micIcon.sprite = micMuteSymbol.Sprite;
+                    micIcon.color = Color.white;
+                    break;
+                case MicIconState.MuteViaPunishment:
+                    micIcon.sprite = micTimeoutSymbol.Sprite;
+                    micIcon.color = Color.white;
+                    break;
+            }
+        }
+    }
+
+    public void InfrequentUpdate()
+    {
+        if (Watch.TimeOffset is float timeOffset)
+        {
+            DateTime dateTime = DateTime.UtcNow + TimeSpan.FromMinutes(timeOffset);
+            string time = dateTime.ToShortTimeString();
+            string date = dateTime.ToLongDateString();
+            Watch.timeText.text = string.Format("<cspace=0.1em>{0}</cspace><br><size=50%>{1}</size>", time, date);
         }
 
-        public void UpdateSpeaker()
+        fpsText.text = (isLocalWatch ? Mathf.FloorToInt(frameCount / timeCount) : Watch.Rig.fps).ToString();
+
+        if (isLocalWatch)
         {
-            if (micIcon) micIcon.enabled = NetworkSystem.Instance.InRoom;
+            int ping = (PhotonNetwork.NetworkingClient is LoadBalancingClient client && client.LoadBalancingPeer is LoadBalancingPeer peer) ? peer.RoundTripTime : -1;
+            if (pingObject.activeSelf != (ping != -1)) pingObject.SetActive(ping != -1);
+            pingText.text = ping.ToString();
         }
+    }
+
+    public void UpdateBell(int notificationCount)
+    {
+        bool hasUnread = notificationCount > 0;
+        bellIcon.sprite = (hasUnread ? bellRingSymbol : bellIdleSymbol).Sprite;
+        bellIcon.color = hasUnread ? Color.white : Color.grey;
+    }
+
+    private enum MicIconState
+    {
+        None = -1,
+        Silent,
+        Speaking,
+        MuteViaPreference,
+        MuteViaPunishment
     }
 }

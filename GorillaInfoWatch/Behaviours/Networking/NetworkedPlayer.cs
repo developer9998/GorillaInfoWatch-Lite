@@ -1,59 +1,105 @@
+using GorillaInfoWatch.Behaviours.UI;
 using GorillaInfoWatch.Extensions;
+using GorillaInfoWatch.Models;
+using GorillaInfoWatch.Models.Significance;
 using GorillaInfoWatch.Tools;
+using GorillaNetworking;
 using Photon.Realtime;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-namespace GorillaInfoWatch.Behaviours.Networking
+namespace GorillaInfoWatch.Behaviours.Networking;
+
+[RequireComponent(typeof(RigContainer)), DisallowMultipleComponent]
+public class NetworkedPlayer : MonoBehaviour, IPreDisable
 {
-    [RequireComponent(typeof(RigContainer)), DisallowMultipleComponent]
-    public class NetworkedPlayer : MonoBehaviour
+    public bool HasInfoWatch { get; set; }
+    public Watch Watch { get; private set; }
+    public PlayerConsent Consent { get; private set; }
+
+    public VRRig Rig;
+
+    public NetPlayer Player;
+
+    private static readonly Dictionary<string, PlayerConsent> _consentCache = [];
+
+    public void Start()
     {
-        public InfoWatch NetworkedInfoWatch { get; private set; }
+        if (HasInfoWatch) return;
 
-        public bool HasInfoWatch { get; set; }
+        if (Player is PunNetPlayer punPlayer && punPlayer.PlayerRef is Player playerRef) NetworkManager.Instance.OnPlayerPropertiesUpdate(playerRef, playerRef.CustomProperties);
+    }
 
-        public VRRig Rig;
+    public void OnDestroy()
+    {
+        HasInfoWatch = false;
+        if (Watch.Exists()) Watch.gameObject.Obliterate();
+    }
 
-        public NetPlayer Player;
+    public void PreDisable()
+    {
+        enabled = false;
+        HasInfoWatch = false;
+        if (Watch.Exists()) Watch.gameObject.Obliterate();
+    }
 
-        public void Start()
+    public void OnPlayerPropertyChanged(Dictionary<string, object> properties)
+    {
+        if (!enabled) return;
+
+        if (Watch.Null())
         {
-            NetworkManager.Instance.OnPlayerPropertyChanged += OnPlayerPropertyChanged;
-
-            if (!HasInfoWatch && Player is PunNetPlayer punPlayer && punPlayer.PlayerRef is Player playerRef)
-                NetworkManager.Instance.OnPlayerPropertiesUpdate(playerRef, playerRef.CustomProperties);
+            GameObject prefab = Instantiate(Main.Content.WatchPrefab);
+            Watch = prefab.GetComponent<Watch>();
+            Watch.Rig = Rig;
+            prefab.SetActive(true);
         }
 
-        public void OnDestroy()
+        if (properties.TryGetValue("TimeOffset", out object timeOffsetObj) && timeOffsetObj is float timeOffset)
         {
-            NetworkManager.Instance.OnPlayerPropertyChanged -= OnPlayerPropertyChanged;
+            Watch.TimeOffset = timeOffset;
+        }
 
-            if (HasInfoWatch)
+        if (properties.TryGetValue("Orientation", out object orientationObj) && orientationObj is bool orientation)
+        {
+            Watch.SetHand(orientation);
+        }
+
+        if (properties.TryGetValue("Consent", out object consentObj) && consentObj is PlayerConsent consent)
+        {
+            SignificanceCheckScope scope = SignificanceCheckScope.None;
+
+            Dictionary<PlayerConsent, SignificanceCheckScope> dictionary = new()
             {
-                HasInfoWatch = false;
-                if (NetworkedInfoWatch) Destroy(NetworkedInfoWatch.gameObject);
-            }
-        }
+                { PlayerConsent.Item, SignificanceCheckScope.Item },
+                { PlayerConsent.Figure, SignificanceCheckScope.Figure }
+            };
 
-        public void OnPlayerPropertyChanged(NetPlayer player, Dictionary<string, object> properties)
-        {
-            if (player == Player)
+            long totalConsentInteger = Convert.ToInt64(Consent);
+            long newConsentInteger = Convert.ToInt64(consent);
+
+            dictionary.Where(element =>
             {
-                Logging.Info($"{player.GetName().SanitizeName()} got properties: {string.Join(", ", properties.Select(prop => $"[{prop.Key}: {prop.Value}]"))}");
+                long flagInteger = Convert.ToInt64(element.Key);
+                long totalContains = totalConsentInteger & flagInteger;
+                long newContains = newConsentInteger & flagInteger;
+                Logging.Info($"Consent includes {element.Key}: {newContains == flagInteger}");
+                return totalContains != newContains;
+            }).ForEach(element => scope |= element.Value);
 
-                if (NetworkedInfoWatch == null || !NetworkedInfoWatch)
-                {
-                    GameObject prefab = Instantiate(Main.Content.WatchPrefab);
-                    NetworkedInfoWatch = prefab.GetComponent<InfoWatch>();
-                    NetworkedInfoWatch.Rig = Rig;
-                    prefab.SetActive(true);
-                }
-
-                if (properties.TryGetValue("TimeOffset", out object timeOffsetObj) && timeOffsetObj is float timeObject)
-                    NetworkedInfoWatch.TimeOffset = timeObject;
-            }
+            Consent = consent;
+            _consentCache.AddOrUpdate(Player.UserId, consent);
+            SignificanceManager.Instance.CheckPlayer(Player, scope);
         }
+    }
+
+    public static PlayerConsent GetTemporaryConsent(string userId) => _consentCache.TryGetValue(userId ?? "", out PlayerConsent consent) ? consent : PlayerConsent.None;
+
+    public static void RemoveTemporaryConsent(string userId)
+    {
+        if (!_consentCache.ContainsKey(userId)) return;
+        _consentCache.Remove(userId);
     }
 }

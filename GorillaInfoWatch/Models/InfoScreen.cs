@@ -5,6 +5,7 @@ namespace GorillaInfoWatch.Models
 {
     public abstract class InfoScreen : MonoBehaviour
     {
+        public static InfoScreen LoadedScreen { get; internal set; }
         public abstract string Title { get; }
         public virtual string Description { get; set; }
         public virtual Type ReturnType { get; set; } = null;
@@ -17,7 +18,7 @@ namespace GorillaInfoWatch.Models
 
         internal int sectionNumber;
 
-        internal InfoContent contents;
+        internal InfoContent content;
 
         public void LoadScreen<T>() where T : InfoScreen => LoadScreen(typeof(T));
         public void LoadScreen(Type type) => LoadScreenRequest?.Invoke(type);

@@ -19,6 +19,8 @@ namespace GorillaInfoWatch.Screens
 
         public override InfoContent GetContent()
         {
+            // TODO: redo all of this shit
+
             LineBuilder profileLines = new();
 
             VRRig localRig = GorillaTagger.Instance.offlineVRRig;
@@ -242,7 +244,13 @@ namespace GorillaInfoWatch.Screens
             LineBuilder platform = str;
             */
 
-            return new PageBuilder(("Profile", profileLines), ("Economy", economyLines), ("Safety", safetyLines), ("Progression", progressionLines));
+            return new PageBuilder
+            (
+                new Section("Profile", profileLines),
+                new Section("Economy", economyLines),
+                new Section("Safety", safetyLines),
+                new Section("Progression", progressionLines)
+            );
         }
     }
 }

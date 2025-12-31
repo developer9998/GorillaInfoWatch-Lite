@@ -1,51 +1,52 @@
 ﻿using GorillaInfoWatch.Models;
 using GorillaInfoWatch.Models.StateMachine;
-using GorillaInfoWatch.Tools;
+using GorillaInfoWatch.Utilities;
 using UnityEngine;
 using HandIndicator = GorillaTriggerColliderHandIndicator;
 using Player = GorillaLocomotion.GTPlayer;
 
-namespace GorillaInfoWatch.Behaviours.UI
+namespace GorillaInfoWatch.Behaviours.UI;
+
+public class Trigger : MonoBehaviour
 {
-    public class Trigger : MonoBehaviour
+    public Panel Menu;
+
+    public AudioSource AudioSource;
+
+    private bool IsLeftHand => Watch.LocalWatch?.InLeftHand ?? true;
+    private Player.HandState Hand => IsLeftHand ? Player.Instance.leftHand : Player.Instance.rightHand;
+    private bool IsFacingUp => Vector3.Distance(Hand.controllerTransform.right * (IsLeftHand ? 1f : -1f), Vector3.up) > 1.82f;
+    private bool InView => Vector3.Dot(Player.Instance.headCollider.transform.forward, (transform.position - Player.Instance.headCollider.transform.position).normalized) > 0.64f;
+
+    private float touchTime;
+
+    public void Start()
     {
-        public Panel Menu;
+        AudioSource = GetComponent<AudioSource>();
 
-        public AudioSource AudioSource;
+        Menu.SetActive(!XRUtility.IsXRSubsystemActive);
+    }
 
-        private bool IsFacingUp => Vector3.Distance(Player.Instance.leftHand.controllerTransform.right, Vector3.up) > 1.82f;
-        private bool InView => Vector3.Dot(Player.Instance.headCollider.transform.forward, (transform.position - Player.Instance.headCollider.transform.position).normalized) > 0.64f;
-
-        private float touchTime;
-
-        public void Start()
+    public void OnTriggerEnter(Collider other)
+    {
+        if (IsFacingUp && InView && other.TryGetComponent(out HandIndicator handIndicator) && Time.realtimeSinceStartup > touchTime)
         {
-            AudioSource = GetComponent<AudioSource>();
+            touchTime = Time.realtimeSinceStartup + 0.3f;
 
-            Menu.SetActive(!ContextInfo.InVR);
-        }
+            GorillaTagger.Instance.StartVibration(handIndicator.isLeftHand, GorillaTagger.Instance.taggedHapticStrength, GorillaTagger.Instance.tapHapticDuration);
 
-        public void OnTriggerEnter(Collider other)
-        {
-            if (IsFacingUp && InView && other.TryGetComponent(out HandIndicator handIndicator) && Time.realtimeSinceStartup > touchTime)
+            AudioSource.PlayOneShot(AudioSource.clip, 0.4f);
+
+            if (Watch.LocalWatch is Watch watch && watch.MenuStateMachine.CurrentState is Menu_Notification subState && subState.notification is Notification notification)
             {
-                touchTime = Time.realtimeSinceStartup + 0.3f;
+                Notifications.OpenNotification(notification, true);
+                watch.MenuStateMachine.SwitchState(subState.previousState);
 
-                GorillaTagger.Instance.StartVibration(handIndicator.isLeftHand, GorillaTagger.Instance.taggedHapticStrength, GorillaTagger.Instance.tapHapticDuration);
-
-                AudioSource.PlayOneShot(AudioSource.clip, 0.4f);
-
-                if (InfoWatch.LocalWatch is InfoWatch watch && watch.MenuStateMachine.CurrentState is Menu_Notification subState && subState.notification is Notification notification)
-                {
-                    Notifications.OpenNotification(notification, true);
-                    watch.MenuStateMachine.SwitchState(subState.previousState);
-
-                    Menu.SetActive(true);
-                    return;
-                }
-
-                Menu.SetActive(!Menu.Active);
+                Menu.SetActive(true);
+                return;
             }
+
+            Menu.SetActive(!Menu.Active);
         }
     }
 }

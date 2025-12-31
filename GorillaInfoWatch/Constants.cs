@@ -3,8 +3,8 @@
     public class Constants
     {
         public const string GUID = "dev.gorillainfowatch";
-        public const string Name = "GorillaInfoWatch Lite";
-        public const string Version = "1.0.1";
+        public const string Name = "GorillaInfoWatch Late";
+        public const string Version = "1.1.0";
 
         public const int SectionCapacity = 14;
 
@@ -16,6 +16,9 @@
         public const float MenuTiltMinimum = 7.5f; // angle after previous
         public const float MenuTiltAmount = 0.95f; // angle factor after that
 
-        public const string SignificancePlayerNameTag = "[PlayerName]";
+        public const string DataEntry_ShortcutName = "ShortcutName";
+        public const string DataEntry_Consent = "Consent";
+
+        public const string Uri_LatestVersion = "https://raw.githubusercontent.com/developer9998/GorillaInfoWatch-Lite/main/LatestVersion.txt";
     }
 }

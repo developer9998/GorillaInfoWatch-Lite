@@ -1,6 +1,5 @@
 using GorillaInfoWatch.Models;
 using GorillaInfoWatch.Models.Attributes;
-using GorillaInfoWatch.Models.Enumerations;
 using GorillaInfoWatch.Models.Widgets;
 
 namespace GorillaInfoWatch.Screens
@@ -9,7 +8,6 @@ namespace GorillaInfoWatch.Screens
     internal class CreditScreen : InfoScreen
     {
         public override string Title => "Credits";
-        public override string Description => $"Credits for {Constants.Name} {Constants.Version}";
 
         private readonly string creditFormat = "<line-height=45%>{0}<br><size=60%>{1}: {2}";
 
@@ -56,7 +54,7 @@ namespace GorillaInfoWatch.Screens
                 {
                     Alignment = WidgetAlignment.Left
                 });
-                baseCredits.Add(string.Format(creditFormat, "Will", "will_0x40", "Tester"), new Widget_Symbol(new(Symbols.Maple))
+                baseCredits.Add(string.Format(creditFormat, "Mia", "mia7z", "Tester"), new Widget_Symbol(new(Symbols.Mia))
                 {
                     Alignment = WidgetAlignment.Left
                 });
@@ -68,7 +66,8 @@ namespace GorillaInfoWatch.Screens
                 {
                     Alignment = WidgetAlignment.Left
                 });
-                pageBuilder.AddPage(baseCredits);
+
+                pageBuilder.Add(null, $"These are contributors and testers respectively who helped create {Constants.Name} {Constants.Version}", baseCredits);
 
                 LineBuilder supporterCredits = new();
                 supporterCredits.Add(string.Format(creditFormat, "CBigback", "cbigbomb", "Supporter since March 9, 2025"), new Widget_Symbol(new(Symbols.Patreon))
@@ -87,7 +86,8 @@ namespace GorillaInfoWatch.Screens
                 {
                     Alignment = WidgetAlignment.Left
                 });
-                pageBuilder.AddPage("Supporters", supporterCredits);
+
+                pageBuilder.Add("Supporters", "These are my highest tier supporters who paid to be here", supporterCredits);
             }
         }
 
