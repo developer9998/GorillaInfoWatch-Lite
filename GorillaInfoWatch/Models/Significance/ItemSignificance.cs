@@ -28,7 +28,7 @@ public class ItemSignificance : PlayerSignificance
             return CosmeticsController.instance?.concatStringCosmeticsAllowed is string localAllowedCosmetics && localAllowedCosmetics.Contains(ItemId);
 
         if (VRRigCache.Instance.TryGetVrrig(player, out RigContainer playerRig))
-            return playerRig.Rig.concatStringOfCosmeticsAllowed is string allowedCosmetics && allowedCosmetics.Contains(ItemId);
+            return playerRig.Rig.rawCosmeticString is string allowedCosmetics && allowedCosmetics.Contains(ItemId);
 
         return false;
     }
